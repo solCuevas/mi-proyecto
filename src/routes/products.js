@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateCurrent, onlyAdmin, onlyUser } = require('../middlewares/auth'); // Importar los middlewares
-
+const productController = require('../controllers/productController');
 // Ruta para crear un producto (solo admin)
 router.post('/create', authenticateCurrent, onlyAdmin, (req, res) => {
   // Lógica para crear un producto
