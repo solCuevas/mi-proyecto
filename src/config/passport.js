@@ -1,16 +1,16 @@
-
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
-const User = require('../models/Users');
+const User = require('../models/user'); // Asegúrate de importar correctamente el modelo User
 require('dotenv').config();
 
+// Opciones JWT
 const jwtOptions = {
-  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Authorization: Bearer <token>
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
   secretOrKey: process.env.JWT_SECRET || 'un_secret_largo_y_seguro'
 };
 
-// Local strategy para login (email + password)
+// Estrategia local (para login)
 passport.use('login', new LocalStrategy({
   usernameField: 'email',
   passwordField: 'password',
@@ -27,10 +27,9 @@ passport.use('login', new LocalStrategy({
   }
 }));
 
-// JWT strategy: "current" — valida el token y coloca req.user
+// Estrategia JWT (para autenticar al usuario)
 passport.use('current', new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
-    // payload.sub contendrá el id al firmar el token 
     const user = await User.findById(payload.sub).select('-password');
     if (!user) return done(null, false, { message: 'Token válido pero usuario no existe' });
     return done(null, user);

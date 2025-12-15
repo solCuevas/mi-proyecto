@@ -1,70 +1,80 @@
-
 const jwt = require('jsonwebtoken');
-const User = require('../models/Users');
-require('dotenv').config();
+const nodemailer = require('nodemailer');
+const UserRepository = require('../repositories/userRepository');
+const { JWT_SECRET, EMAIL_USER, EMAIL_PASS, CLIENT_URL } = process.env;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'un_secret_largo_y_seguro';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
-
-exports.register = async (req, res) => {
-  try {
-    const { first_name, last_name, email, age, password, role, cart } = req.body;
-    if (!first_name || !last_name || !email || !password) {
-      return res.status(400).json({ message: 'Faltan datos requeridos' });
-    }
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) return res.status(409).json({ message: 'Email ya registrado' });
-
-    const newUser = new User({
-      first_name, last_name, email: email.toLowerCase(), age, password, role: role || 'user', cart
-    });
-    await newUser.save();
-
-    const userToReturn = newUser.toJSON();
-    res.status(201).json({ message: 'Usuario creado', user: userToReturn });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error interno' });
-  }
+// Función para generar un token de recuperación de contraseña
+const generateResetToken = (userId) => {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '1h' });
 };
 
-exports.login = async (req, res) => {
-  try {
-    const user = req.user; // seteado por passport 'login'
-    const payload = {
-      sub: user._id,
-      email: user.email,
-      role: user.role
-    };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+// Enviar correo con el enlace de restablecimiento de contraseña
+const sendResetEmail = async (email, token) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: EMAIL_USER,
+      pass: EMAIL_PASS,
+    },
+  });
 
-    const userResp = {
-      id: user._id,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      role: user.role,
-      age: user.age,
-      cart: user.cart
-    };
+  const resetLink = `${CLIENT_URL}/reset-password?token=${token}`;
 
-    res.json({ message: 'Autenticado', token, user: userResp });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error al generar token' });
-  }
-};
-
-exports.current = async (req, res) => {
-  if (!req.user) return res.status(401).json({ message: 'Usuario no autenticado' });
-  const user = {
-    id: req.user._id,
-    first_name: req.user.first_name,
-    last_name: req.user.last_name,
-    email: req.user.email,
-    role: req.user.role,
-    age: req.user.age,
-    cart: req.user.cart
+  const mailOptions = {
+    from: EMAIL_USER,
+    to: email,
+    subject: 'Recuperación de Contraseña',
+    text: `Haz clic en el siguiente enlace para restablecer tu contraseña: ${resetLink}`,
   };
-  res.json({ user });
+
+  await transporter.sendMail(mailOptions);
+};
+
+// Recuperar contraseña (Genera el token y lo envía por correo)
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await UserRepository.findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Generar el token
+    const token = generateResetToken(user._id);
+
+    // Enviar el correo con el enlace para restablecer la contraseña
+    await sendResetEmail(email, token);
+
+    res.status(200).json({ message: 'Te hemos enviado un enlace para restablecer tu contraseña' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al enviar el correo', error });
+  }
+};
+
+// Restablecer contraseña con el token
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    // Verificar el token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await UserRepository.findUserById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Verificar que la nueva contraseña no sea la misma que la actual
+    if (user.isValidPassword(newPassword)) {
+      return res.status(400).json({ message: 'La nueva contraseña no puede ser la misma que la anterior' });
+    }
+
+    // Actualizar la contraseña
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Contraseña restablecida con éxito' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al restablecer la contraseña', error });
+  }
 };

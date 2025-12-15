@@ -1,5 +1,5 @@
 
-const User = require('../models/Users');
+const User = require('../models/user');
 
 // Listar todos los usuarios (sin password)
 exports.list = async (req, res) => {

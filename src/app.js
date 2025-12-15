@@ -1,10 +1,10 @@
-
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const passport = require('./config/passport'); // registra estrategias
+const passport = require('./config/passport');
 const sessionsRoutes = require('./routes/sessions');
 const usersRoutes = require('./routes/users');
+const productsRoutes = require('./routes/products');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 
@@ -20,6 +20,7 @@ app.use(passport.initialize());
 // Rutas
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/products', productsRoutes);
 
 // Ruta base
 app.get('/', (req, res) => res.json({ message: 'API Ecommerce OK' }));
@@ -38,3 +39,4 @@ mongoose.connect(MONGO_URI)
   });
 
 module.exports = app;
+

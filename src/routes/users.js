@@ -1,11 +1,9 @@
-
 const express = require('express');
-const router = express.Router();
+const passport = require('passport');
 const usersController = require('../controllers/usersController');
-const passport = require('../config/passport');
 const { only } = require('../middlewares/auth');
 
-
+const router = express.Router();
 
 // Listar usuarios (protegida: solo admin)
 router.get('/', passport.authenticate('current', { session: false }), only('admin'), usersController.list);
